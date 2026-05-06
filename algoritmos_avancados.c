@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 // Desafio Detective Quest
 // Tema 4 - Árvores e Tabela Hash
@@ -11,6 +12,7 @@
 typedef struct Sala {
     // Armzena nome ou valor do nó (até 49 caracteres + '\0')
     char nome[50];
+    char pista[50]; // Novo campo para guardar a pista
     // Ponteiro para o filho à esquerda
     struct Sala *esquerda;
     // Ponteiro para o filho à direita
@@ -23,7 +25,7 @@ typedef struct Sala {
     Aloca dinamicamente uma nova sala, define o nome
     e inicializa as portas (filhos) como NULL.
 */
-Sala* criarSala(char* nome) {
+Sala* criarSala(char* nome, const char* pista) {
     // Aloca dinamicamente memória para um novo nó e
     // guarda o endereço em 'novo'
     Sala* novaSala = (Sala*) malloc(sizeof(Sala)); // Alocação dinâmica de memória
@@ -33,9 +35,81 @@ Sala* criarSala(char* nome) {
     }
 
     strcpy(novaSala->nome, nome);   // Copia a string do valor para o campo do nó
+
+    if (pista != NULL) {
+        strcpy(novaSala->pista, pista);  
+    } else {
+        strcpy(novaSala->pista, ""); // Se não tiver pista, deixa a string vazia
+    }
+
     novaSala->esquerda = NULL;        // Inicializa filho esquerdo como NULL
     novaSala->direita = NULL;         // Inicializa filho direito como NULL
     return novaSala;
+}
+// =======================================================
+// FUNÇÕES DA ÁRVORE DE PISTAS (BST)
+// =======================================================
+
+// Estrutura do nó da BST
+// Definição das estruturas (BST)
+typedef struct NoBST {
+    char valor[50];         // Valor armazenado no nó (string)
+    struct NoBST* esquerda; // [PONTEIROS] Aponta para o filho esquerdo
+    struct NoBST* direita;  // [PONTEIROS] Aponta para o filho direito
+} NoBST;
+
+// Cria um novo nó BST
+// Aloca memória para uma nova pista na BST
+NoBST* criarNoBST(const char* valor) {
+    NoBST* novo = (NoBST*)malloc(sizeof(NoBST)); // [PONTEIROS] malloc retorna o endereço do nó criando, que será manipulado via ponteiros.
+    strcpy(novo->valor, valor); 
+    novo->esquerda = NULL; // [PONTEIROS] Um ponteiro nulo indica "não tem filho" (folha).
+    novo->direita = NULL;  // [PONTEIROS] Idem acima.
+    return novo;           // [PONTEIROS] Retorna o endereço do nó criado.
+}
+
+// Inserir elementos na BST (ordem alfabética)
+NoBST* inserirPista(NoBST* raiz, const char* valor) {
+    if (raiz == NULL)
+        return criarNoBST(valor);
+    if (strcmp(valor, raiz->valor) < 0)
+        raiz->esquerda = inserirPista(raiz->esquerda, valor); // [PONTEIROS] Liga o campo "esquerda" para apontar para o novo subnó.
+    else
+        raiz->direita = inserirPista(raiz->direita, valor);   // [PONTEIROS] Liga o campo "direita" para apontar para o novo subnó.
+    return raiz; // [PONTEIROS] Sempre devolve o ponteiro (endereço) da raiz da árvore atualizada.
+}
+
+// Busca na BST
+// Percurso Em Ordem: exibe as pistas em ordem alfabética
+bool buscarBST(NoBST* raiz, const char* chave) {
+    if (raiz == NULL)
+        return false;
+    if (strcmp(chave, raiz->valor) == 0)
+        return true;
+    if (strcmp(chave, raiz->valor) < 0)
+        return buscarBST(raiz->esquerda, chave); // [PONTEIROS] Segue o ponteiro "esquerda" para continuar a busca.
+    else
+        return buscarBST(raiz->direita, chave);  // [PONTEIROS] Segue o ponteiro "direita" para continuar a busca.
+}
+
+// Percurso em ordem (ordem alfabética)
+// Visita a subárvore esquerda, o nó atual e depois a direita. Exibe valores em ordem alfabética (ou numérica).
+void exibirPistas(NoBST* raiz) {
+    if (raiz != NULL) {
+        exibirPistas(raiz->esquerda);   // [PONTEIROS] Percorre a subárvore à esquerda
+        printf("%s | ", raiz->valor);
+        exibirPistas(raiz->direita);    // [PONTEIROS] Percorre a subárvore à direita
+    }
+}
+
+// Libera a mémoria da BST
+// Libera a memória da árvore de pistas em pós-ordem
+void liberarBST(NoBST* raiz) {
+    if (raiz != NULL) {
+        liberarBST(raiz->direita);    // [PONTEIROS] Libera toda a subárvore à direita
+        liberarBST(raiz->esquerda);   // [PONTEIROS] Libera toda a subárvore à esquerda
+        free(raiz); // [PONTEIROS] Libera o nó atual
+    }
 }
 
 /*
@@ -44,22 +118,33 @@ Sala* criarSala(char* nome) {
     Permite ao jogador navegar pela árvore binária
     escolhendo os caminhos interativamente.
 */
-void explorarSalas(Sala* atual) {
+void explorarSalasComPistas(Sala* atual, NoBST** raizPistas) {
     char opcao;
     int explorando = 1; // Flag para controlar o loop de exploração
 
+    Sala* raizMapa = atual; // Guarda a referência à raiz do mapa para permitir voltar ao início
+
     while (atual != NULL && explorando) {
         printf("\n========================================\n");
-        printf("Você está no(a): %s\n", atual->nome);
+        printf("Voce esta no(a): %s\n", atual->nome);
+
+        // 1. AVISO GENÉRICO (Fica fora do switch)
+        // O jogo te avisa que tem algo, mas não diz o que é e não coleta!
+        if (strlen(atual->pista) > 0) {
+            printf("Voce nota algo de interesse neste comodo... (Use 'v' para investigar)\n");
+        }
 
         // Verifica se é um nó folha (sala sem saídas)
         if (atual->esquerda == NULL && atual->direita == NULL) {
-            printf("Fim do caminho! Você chegou a um cômodo sem saídas.\n");
-            break;
+            printf("Fim do caminho! Voce chegou a um comodo sem saidas.\n");
         }
 
-        printf("Opções de navegação: (e) esquerda | (d) direita | (s) sair\n");
-        printf("Sua escolha: ");
+        printf("Opcoes de navegacao: (e) esquerda | (d) direita | (s) sair |\n");
+        printf("Verificar (v) | Inventario (i) ");
+        if (atual != raizMapa) {
+            printf("| Voltar ao Hall (r)");
+        }
+        printf("\nSua escolha: ");
         scanf(" %c", &opcao);
 
         switch (opcao) {
@@ -68,8 +153,7 @@ void explorarSalas(Sala* atual) {
             if (atual->esquerda != NULL) {
                 atual = atual->esquerda; // Move para a sala à esquerda
             } else {
-                printf("Caminho bloqueado! Não há sala à esquerda.\n");
-
+                printf("Caminho bloqueado! Nao ha sala a esquerda.\n");
             }
             break;
         case 'd':
@@ -77,16 +161,47 @@ void explorarSalas(Sala* atual) {
             if (atual->direita != NULL) {
                 atual = atual->direita; // Move para a sala à direita
             } else {
-                printf("Caminho bloqueado! Não há sala à direita.\n");
+                printf("Caminho bloqueado! Nao ha sala a direita.\n");
+            }
+            break;
+        case 'r':
+        case 'R':
+            // Volta pro Hall
+            if (atual != raizMapa) {
+                printf("Voce deu meia volta e retornou ao Hall de Entrada!\n");
+                atual = raizMapa; // Reinicia a posição pro ponto salvo lá em cima!
+            } else {
+                printf("Voce ja esta no Hall de Entrada!\n");
             }
             break;
         case 's':
         case 'S':
-            printf("Você encerrou a investigação e saiu da mansão.\n");
+            printf("Voce encerrou a investigação e saiu da mansao.\n");
             explorando = 0;
             break;
+        case 'v':
+        case 'V':
+            if (strlen(atual->pista) > 0) {
+                printf("Pista revelada e coletada!\n");
+                printf("Pista atual: %s\n", atual->pista);
+                *raizPistas = inserirPista(*raizPistas, atual->pista); // Adiciona a pista à BST
+                strcpy(atual->pista, ""); // Limpa a pista da sala para evitar duplicatas
+            } else {
+                printf("Voce vasculhou bem, mas nao ha nada (ou nada novo) aqui.\n");
+            }
+            break;
+        case 'i':
+        case 'I':
+            printf("\nPistas coletadas (em ordem alfabetica):\n");
+            if (*raizPistas == NULL) {
+                printf(" Nenhuma pista foi coletada.\n");
+            } else {
+                exibirPistas(*raizPistas);
+                printf("\n");
+            }
+            break;
         default:
-            printf("Opção inválida! Digite 'e', 'd' ou 's'.\n");
+            printf("Opcao invalida! Digite 'e', 'd' ou 's'.\n");
             break;
         }
     }
@@ -105,8 +220,14 @@ void liberar(struct Sala* raiz) {
     }
 }
 
+/*
+    Função principal: main
+    -------------------------------------------------------
+    Monta a árvore binária do mapa da mansão manualmente
+    e inicia a exploração.
+*/
 int main() {
-
+    NoBST* inventarioPistas = NULL;
     // 🌱 Nível Novato: Mapa da Mansão com Árvore Binária
     //
     // - Crie uma struct Sala com nome, e dois ponteiros: esquerda e direita.
@@ -117,13 +238,15 @@ int main() {
     // - Exiba o nome da sala a cada movimento.
     // - Use recursão ou laços para caminhar pela árvore.
     // - Nenhuma inserção dinâmica é necessária neste nível.
-        // Criando a árvore binária do mapa da mansão
-    Sala* hall = criarSala("Hall de Entrada");
-    Sala* salaEstar = criarSala("Sala de Estar");
-    Sala* biblioteca = criarSala("Biblioteca");
-    Sala* quarto = criarSala("Quarto");
-    Sala* cozinha = criarSala("Cozinha");
-    Sala* sotao = criarSala("Sótão");
+
+    // Criando a árvore binária do mapa da mansão
+
+    Sala* hall = criarSala("Hall de Entrada", NULL);
+    Sala* salaEstar = criarSala("Sala de Estar", "Pegadas de Lama");
+    Sala* biblioteca = criarSala("Biblioteca", "Chave perdida");
+    Sala* quarto = criarSala("Quarto", "Livro com paginas faltando");
+    Sala* cozinha = criarSala("Cozinha", "Lencol manchado");
+    Sala* sotao = criarSala("Sotao", "Gaveta perdida");
 
     // Montagem estática do mapa da mansão (conectando os ponteiros)
     hall->esquerda = salaEstar;
@@ -134,11 +257,22 @@ int main() {
     
     biblioteca->direita = sotao; // Biblioteca só tem caminho para a direita
 
-    printf("DETECTIVE QUEST - INÍCIO DA INVESTIGAÇÃO 🔍\n");
-    explorarSalas(hall);
+    printf("DETECTIVE QUEST - INICIO DA INVESTIGACAO\n");
+    explorarSalasComPistas(hall, &inventarioPistas);
+    
+    printf("\n========================================\n");
+    printf("Pistas coletadas (em ordem alfabetica):\n");
+    if (inventarioPistas == NULL) {
+        printf(" Nenhuma pista foi coletada.\n");
+    } else {
+        // Usa o percurso "Em Ordem" da sua BST para exibir organizado
+        exibirPistas(inventarioPistas);
+    }
+    printf("\n========================================\n");
 
     // Libera a memória ao final da execução
     liberar(hall);
+    liberarBST(inventarioPistas);
 
     // 🔍 Nível Aventureiro: Armazenamento de Pistas com Árvore de Busca
     //
