@@ -1,12 +1,21 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
+/*
+  Programa: Detective Quest - Nível Novato
+  -------------------------------------------------------------
+  Este programa constrói o mapa de uma mansão usando uma 
+  Árvore Binária e permite a exploração interativa pelo jogador.
+*/
 
 // Desafio Detective Quest
 // Tema 4 - Árvores e Tabela Hash
 // Este código inicial serve como base para o desenvolvimento das estruturas de navegação, pistas e suspeitos.
 // Use as instruções de cada região para desenvolver o sistema completo com árvore binária, árvore de busca e tabela hash.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+
+#define TAMANHO_TABELA 10
 
 // Definição da estrutura do nó da árvore binária (agora chamada Sala)
 typedef struct Sala {
@@ -112,13 +121,156 @@ void liberarBST(NoBST* raiz) {
     }
 }
 
+// =======================================================
+// FUNCOES DA TABELA HASH (NIVEL MESTRE)
+// =======================================================
+
+typedef struct NoHash {
+    char pista[50];
+    char suspeito[50];
+    struct NoHash* proximo; // Ponteiro para o próximo nó na lista encadeada (para tratamento de colisões)
+} NoHash;
+
+void inicializarHash(NoHash** tabela) {
+    for (int i = 0; i < TAMANHO_TABELA; i++) {
+        tabela[i] = NULL;
+    }
+}
+
+int funcao_hash(const char* chave) {
+    int soma = 0;
+    for (int i = 0; chave[i] != '\0'; i++) {
+        soma += chave[i];
+    }
+    return soma % TAMANHO_TABELA;
+}
+
+void inserir_chaining(NoHash* tabela_chaining[], const char* pista, const char* suspeito) { 
+    int indice = funcao_hash(pista); // Descobre onde armazenar
+    // Cria um nó
+    NoHash* novo = (NoHash*)malloc(sizeof(NoHash));
+
+    strcpy(novo->pista, pista);
+    strcpy(novo->suspeito, suspeito);
+
+    // Insere no início da lista (head)
+    novo->proximo = tabela_chaining[indice];
+    tabela_chaining[indice] = novo;
+}
+
+NoHash* buscar_chaining(NoHash* tabela_chaining[], const char* pista) {
+    int indice = funcao_hash(pista);
+    NoHash* atual = tabela_chaining[indice];
+
+    while (atual != NULL) {
+        if (strcmp(atual->pista, pista) == 0) {
+                return atual; // Encontrou
+        }
+        atual = atual->proximo;
+    }
+    return NULL; // Não está na lista
+}
+
+void liberarHash(NoHash* tabela_chaining[]) {
+    for (int i = 0; i < TAMANHO_TABELA; i++) {
+        NoHash* atual = tabela_chaining[i];
+        while (atual != NULL) {
+            NoHash* temp = atual;
+            atual = atual->proximo;
+            free(temp); // Libera o nó
+        }
+        tabela_chaining[i] = NULL;
+    }
+}
+
+// =======================================================
+// FASE FINAL: JULGAMENTO (NIVEL MESTRE)
+// =======================================================
+
+void encontrarSuspeito(NoBST* raizPistas, NoHash* tabela_chaining[], int* votosMostarda, int* votosBranca, int* votosPlum) {
+    if (raizPistas != NULL) {
+        encontrarSuspeito(raizPistas->esquerda, tabela_chaining, votosMostarda, votosBranca, votosPlum);
+
+        NoHash* conexao = buscar_chaining(tabela_chaining, raizPistas->valor);
+
+        if (conexao != NULL) {
+            if (strcmp(conexao->suspeito, "Mostarda") == 0) {
+                (*votosMostarda)++;
+            } else if (strcmp(conexao->suspeito, "Branca") == 0) {
+                (*votosBranca)++;
+            } else if (strcmp(conexao->suspeito, "Plum") == 0) {
+                (*votosPlum)++;
+            }
+        }
+        encontrarSuspeito(raizPistas->direita, tabela_chaining, votosMostarda, votosBranca, votosPlum);
+    }
+}
+
+void verificarSuspeitoFinal(NoBST* inventarioPistas, NoHash* tabela_chaining[]) {
+    printf("\n========================================\n");
+    printf("SALA DE JULGAMENTO\n");
+    printf("========================================\n");
+
+    if (inventarioPistas == NULL) {
+        printf("Nenhuma pista coletada. O julgamento não pode prosseguir.\n");
+        printf("O culpado escapou por falta de provas!\n");
+        return;
+    }
+
+    int votosMostarda = 0, votosBranca = 0, votosPlum = 0;
+    encontrarSuspeito(inventarioPistas, tabela_chaining, &votosMostarda, &votosBranca, &votosPlum);
+
+    printf("=== RELATORIO DO SISTEMA ===\n");
+    if (votosMostarda == 0 && votosBranca == 0 && votosPlum == 0) {
+        printf("Nenhuma de suas pistas aponta para os suspeitos conhecidos.\n");
+    } else if (votosMostarda >= votosBranca && votosMostarda >= votosPlum) {
+        printf("Suspeito mais provavel pelas pistas: Mostarda (%d evidencias)\n", votosMostarda);
+    } else if (votosBranca >= votosMostarda && votosBranca >= votosPlum) {
+        printf("Suspeito mais provavel pelas pistas: Branca (%d evidencias)\n", votosBranca);
+    } else {
+        printf("Suspeito mais provavel pelas pistas: Plum (%d evidencias)\n", votosPlum);
+    }
+
+    char acusado[50];
+    printf("\nDetetive, quem voce acusa formalmente? (Mostarda[1], Branca[2] ou Plum[3]): ");
+    scanf(" %49s", acusado);
+
+    int provasContraAcusado = 0;
+    if (strcmp(acusado, "Mostarda") == 0 || strcmp(acusado, "mostarda") == 0 || strcmp(acusado, "1") == 0) {
+        provasContraAcusado = votosMostarda;
+    } else if (strcmp(acusado, "Branca") == 0 || strcmp(acusado, "branca") == 0 || strcmp(acusado, "2") == 0) {
+        provasContraAcusado = votosBranca;
+    } else if (strcmp(acusado, "Plum") == 0 || strcmp(acusado, "plum") == 0 || strcmp(acusado, "3") == 0) {
+        provasContraAcusado = votosPlum;
+    }
+
+    int maxProvas = votosMostarda;
+    if (votosBranca > maxProvas) maxProvas = votosBranca;
+    if (votosPlum > maxProvas) maxProvas = votosPlum;
+
+    if (provasContraAcusado >= 2) {
+        printf("\nPARABENS! O detetive acertou em cheio!\n");
+        printf("As %d pistas provaram a culpa de %s. Caso encerrado!\n", provasContraAcusado, acusado);
+    } else {
+        if (maxProvas >= 2) {
+            printf("\nFALHOU NO TRIBUNAL! Voce acusou %s, mas apresentou apenas prova(s) invalidas.\n", acusado);
+        } else {
+            printf("\nFALHOU NO TRIBUNAL! Voce acusou %s, mas apresentou apenas %d prova(s).\n", acusado, provasContraAcusado);
+            printf("O juiz rejeitou o caso por falta de evidencias contundentes (minimo de 2).\n");
+        }
+        printf("Com o seu erro na acusacao, o verdadeiro culpado aproveitou a confusao e FUGIU da mansao!\n");
+        printf("GAME OVER para o detetive...\n");
+    }
+}
+
 /*
     Função: explorarSalas
     -------------------------------------------------------
     Permite ao jogador navegar pela árvore binária
     escolhendo os caminhos interativamente.
 */
-void explorarSalasComPistas(Sala* atual, NoBST** raizPistas) {
+
+void explorarSalasComPistas(Sala* atual, NoBST** raizPistas, NoHash* tabela_chaining[]) {
     char opcao;
     int explorando = 1; // Flag para controlar o loop de exploração
 
@@ -127,6 +279,7 @@ void explorarSalasComPistas(Sala* atual, NoBST** raizPistas) {
     while (atual != NULL && explorando) {
         printf("\n========================================\n");
         printf("Voce esta no(a): %s\n", atual->nome);
+        printf("Principais Suspeitos: Mostarda, Branca, Plum\n");
 
         // 1. AVISO GENÉRICO (Fica fora do switch)
         // O jogo te avisa que tem algo, mas não diz o que é e não coleta!
@@ -139,8 +292,11 @@ void explorarSalasComPistas(Sala* atual, NoBST** raizPistas) {
             printf("Fim do caminho! Voce chegou a um comodo sem saidas.\n");
         }
 
-        printf("Opcoes de navegacao: (e) esquerda | (d) direita | (s) sair |\n");
+        printf("========================================\n");
+        printf("Necessario no minimo 2 pistas para uma acusacao valida no julgamento final.\n");
+        printf("Opcoes de navegacao: (e) esquerda | (d) direita | (s) iniciar investigacao |\n");
         printf("Verificar (v) | Inventario (i) ");
+        
         if (atual != raizMapa) {
             printf("| Voltar ao Hall (r)");
         }
@@ -184,8 +340,22 @@ void explorarSalasComPistas(Sala* atual, NoBST** raizPistas) {
             if (strlen(atual->pista) > 0) {
                 printf("Pista revelada e coletada!\n");
                 printf("Pista atual: %s\n", atual->pista);
+
                 *raizPistas = inserirPista(*raizPistas, atual->pista); // Adiciona a pista à BST
                 strcpy(atual->pista, ""); // Limpa a pista da sala para evitar duplicatas
+
+                int vMostarda = 0, vBranca = 0, vPlum = 0;
+                encontrarSuspeito(*raizPistas, tabela_chaining, &vMostarda, &vBranca, &vPlum);
+                printf("\n--- DEDUCAO ATUAL ---\n");
+                if (vMostarda == 0 && vBranca == 0 && vPlum == 0) {
+                    printf("Nenhuma de suas pistas aponta para os suspeitos conhecidos.\n");
+                } else if (vMostarda >= vBranca && vMostarda >= vPlum) {
+                    printf("Suspeito mais provavel pelas pistas: Mostarda (%d evidencias)\n", vMostarda);
+                } else if (vBranca >= vMostarda && vBranca >= vPlum) {
+                    printf("Suspeito mais provavel pelas pistas: Branca (%d evidencias)\n", vBranca);
+                } else {
+                    printf("Suspeito mais provavel pelas pistas: Plum (%d evidencias)\n", vPlum);
+                }
             } else {
                 printf("Voce vasculhou bem, mas nao ha nada (ou nada novo) aqui.\n");
             }
@@ -227,20 +397,19 @@ void liberar(struct Sala* raiz) {
     e inicia a exploração.
 */
 int main() {
+    // 1. Inicializa o inventário de pistas vazio (Raiz da BST)
     NoBST* inventarioPistas = NULL;
-    // 🌱 Nível Novato: Mapa da Mansão com Árvore Binária
-    //
-    // - Crie uma struct Sala com nome, e dois ponteiros: esquerda e direita.
-    // - Use funções como criarSala(), conectarSalas() e explorarSalas().
-    // - A árvore pode ser fixa: Hall de Entrada, Biblioteca, Cozinha, Sótão etc.
-    // - O jogador deve poder explorar indo à esquerda (e) ou à direita (d).
-    // - Finalize a exploração com uma opção de saída (s).
-    // - Exiba o nome da sala a cada movimento.
-    // - Use recursão ou laços para caminhar pela árvore.
-    // - Nenhuma inserção dinâmica é necessária neste nível.
+
+    NoHash* tabela_chaining[TAMANHO_TABELA]; // Tabela hash para conectar pistas a suspeitos
+    inicializarHash(tabela_chaining);
+
+    inserir_chaining(tabela_chaining, "Pegadas de Lama", "Mostarda");
+    inserir_chaining(tabela_chaining, "Chave perdida", "Branca");
+    inserir_chaining(tabela_chaining, "Livro com paginas faltando", "Mostarda");
+    inserir_chaining(tabela_chaining, "Lencol manchado", "Plum");
+    inserir_chaining(tabela_chaining, "Gaveta perdida", "Branca");
 
     // Criando a árvore binária do mapa da mansão
-
     Sala* hall = criarSala("Hall de Entrada", NULL);
     Sala* salaEstar = criarSala("Sala de Estar", "Pegadas de Lama");
     Sala* biblioteca = criarSala("Biblioteca", "Chave perdida");
@@ -257,8 +426,11 @@ int main() {
     
     biblioteca->direita = sotao; // Biblioteca só tem caminho para a direita
 
+    printf("========================================\n");
     printf("DETECTIVE QUEST - INICIO DA INVESTIGACAO\n");
-    explorarSalasComPistas(hall, &inventarioPistas);
+    printf("========================================\n");
+
+    explorarSalasComPistas(hall, &inventarioPistas, tabela_chaining);
     
     printf("\n========================================\n");
     printf("Pistas coletadas (em ordem alfabetica):\n");
@@ -270,33 +442,12 @@ int main() {
     }
     printf("\n========================================\n");
 
+    verificarSuspeitoFinal(inventarioPistas, tabela_chaining);
+
     // Libera a memória ao final da execução
     liberar(hall);
     liberarBST(inventarioPistas);
-
-    // 🔍 Nível Aventureiro: Armazenamento de Pistas com Árvore de Busca
-    //
-    // - Crie uma struct Pista com campo texto (string).
-    // - Crie uma árvore binária de busca (BST) para inserir as pistas coletadas.
-    // - Ao visitar salas específicas, adicione pistas automaticamente com inserirBST().
-    // - Implemente uma função para exibir as pistas em ordem alfabética (emOrdem()).
-    // - Utilize alocação dinâmica e comparação de strings (strcmp) para organizar.
-    // - Não precisa remover ou balancear a árvore.
-    // - Use funções para modularizar: inserirPista(), listarPistas().
-    // - A árvore de pistas deve ser exibida quando o jogador quiser revisar evidências.
-
-    // 🧠 Nível Mestre: Relacionamento de Pistas com Suspeitos via Hash
-    //
-    // - Crie uma struct Suspeito contendo nome e lista de pistas associadas.
-    // - Crie uma tabela hash (ex: array de ponteiros para listas encadeadas).
-    // - A chave pode ser o nome do suspeito ou derivada das pistas.
-    // - Implemente uma função inserirHash(pista, suspeito) para registrar relações.
-    // - Crie uma função para mostrar todos os suspeitos e suas respectivas pistas.
-    // - Adicione um contador para saber qual suspeito foi mais citado.
-    // - Exiba ao final o “suspeito mais provável” baseado nas pistas coletadas.
-    // - Para hashing simples, pode usar soma dos valores ASCII do nome ou primeira letra.
-    // - Em caso de colisão, use lista encadeada para tratar.
-    // - Modularize com funções como inicializarHash(), buscarSuspeito(), listarAssociacoes().
+    liberarHash(tabela_chaining);
 
     return 0;
 }
